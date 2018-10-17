@@ -10,12 +10,41 @@ import scala.util.Random
 trait Protocol
 
 class SlotMachine(supervisor: ActorRef) extends Actor with ActorLogging {
-  supervisor ! NewGameRequest(UUID.randomUUID(), "Ihor")
+  private val uuid: UUID = UUID.randomUUID()
+  supervisor ! NewGameRequest(uuid, "Ihor")
+
+  import scala.concurrent.duration._
+  import scala.concurrent.ExecutionContext.Implicits.global
 
   override def receive: Receive = {
-    case NewGameResponse(Success, None) => log.info("Response ok!")
-    case NewGameResponse(Failure, Some(err)) => log.info(s"Response fail: $err!")
-    case Balance(balance: Long) => log.info(s"Balance $balance")
+    case NewGameResponse(Success, None) =>
+      log.info("NewGameResponse ok!")
+    case NewGameResponse(Failure, Some(err)) => log.info(s"NewGameResponse fail: $err!")
+    case Balance(balance: Long) =>
+      log.info(s"Balance $balance")
+      context.system.scheduler.scheduleOnce(4.seconds, sender, RollRequest)
+    case RollResponse(screen, win) =>
+      log.info(s"RollResponse ${win}!")
+      bonusGame(win)
+    case DoubleResponse(win) =>
+      log.info(s"DoubleResponse ${win}!")
+      bonusGame(win)
+  }
+
+  private def bonusGame(win: Long): Unit = {
+    if (win>0) {
+      if (Random.nextBoolean()) {
+        log.info(s"GoToDoubleRequest....")
+        sender ! GoToDoubleRequest
+        if (Random.nextBoolean()) {
+          sender ! DoubleRequest(Card.Black)
+        } else {
+          sender ! DoubleRequest(Card.Red)
+        }
+      } else {
+        sender ! TakeWinRequest
+      }
+    }
   }
 }
 
@@ -27,18 +56,17 @@ class Supervisor extends Actor with ActorLogging {
         case Some(_) =>
           sender ! NewGameResponse(Failure, Some(PlayerAlreadyConnected))
         case None =>
-          val playerActor = context.actorOf(Props[Player], userId.toString)
+          val playerActor = context.actorOf(Props(new Player(userId)), s"user-${userId.toString}")
           log.info(s"Supervisor forward $name to player")
           playerActor.forward(game)
       }
   }
 }
 
-class Player extends Actor with ActorLogging {
-
-  var balance: Long = 20
+class Player(uuid: UUID) extends Actor with ActorLogging {
 
   val RollCost = 1
+  var balance: Long = 20
   val InitState: Receive = {
     case NewGameRequest(userId, name) =>
       if (balance <= 0) {
@@ -48,33 +76,41 @@ class Player extends Actor with ActorLogging {
         log.info(s"New player created $name (id: $userId)")
         sender ! NewGameResponse(Success)
         sender ! Balance(balance)
+        context.become(RollState)
       }
   }
   val RollState: Receive = {
-    case RollRequest(_: UUID) =>
-      balance = balance - RollCost
-
-      val screen = getScreen
-
-      if (isWin(screen)) {
-        val win = getWin(screen)
-        sender ! RollResponse(screen, win)
-        context.become(takeWinOrGoToDouble(win))
+    case RollRequest =>
+      log.info(s"RollState with ${balance}")
+      if (balance < RollCost) {
+        context.self ! PoisonPill
       } else {
-        sender ! RollResponse(screen, 0)
-      }
+        balance = balance - RollCost
 
-      sender ! Balance(balance)
+        val screen = getScreen
+
+        if (isWin(screen)) {
+          val win = getWin(screen)
+          sender ! RollResponse(screen, win)
+          context.become(takeWinOrGoToDouble(win))
+        } else {
+          sender ! RollResponse(screen, 0)
+          sender ! Balance(balance)
+        }
+      }
   }
 
   def takeWinOrGoToDouble(win: Long, step: Int = 5): Receive = {
     case TakeWinRequest =>
+      log.info(s"TakeWinRequest!")
       takeWin(win)
     case GoToDoubleRequest =>
+      log.info(s"GoToDoubleRequest!")
       context.become(takeDouble(win, step))
   }
 
   def takeWin(win: Long): Unit = {
+    log.info(s"takeWin ${win}!")
     balance = balance + win
     sender ! Balance(balance)
     context.become(RollState)
@@ -82,6 +118,7 @@ class Player extends Actor with ActorLogging {
 
   def takeDouble(win: Long, step: Int): Receive = {
     case DoubleRequest(card) =>
+      log.info(s"takeDouble ${win} and ${step}!")
       if (isWin(card)) {
         val newWin = win * 2
         sender ! DoubleResponse(newWin)
@@ -106,7 +143,7 @@ class Player extends Actor with ActorLogging {
   }
 
   private def isWin(card: Card): Boolean = {
-    Random.nextBoolean()
+    Random.nextBoolean() && Random.nextBoolean()
   }
 
   private def getWin(screen: Seq[Seq[Int]]): Long = {

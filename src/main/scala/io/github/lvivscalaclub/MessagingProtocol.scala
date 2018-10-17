@@ -32,7 +32,7 @@ case class NewGameResponse(status: Status, error: Option[Error] = None) extends 
 case class Balance(credits: Long) extends MessagingProtocol
 
 
-case class RollRequest(userId: UUID) extends MessagingProtocol
+case object RollRequest extends MessagingProtocol
 
 case class RollResponse(screen: Seq[Seq[Int]], win: Long) extends MessagingProtocol
 
