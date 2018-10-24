@@ -63,10 +63,10 @@ class Supervisor extends Actor with ActorLogging {
   }
 }
 
-class Player(uuid: UUID) extends Actor with ActorLogging {
+class Player(uuid: UUID, initBalance: Long = 0, randomGenerator: RandomGenerator = DefaultRandomGenerator) extends Actor with ActorLogging {
 
   val RollCost = 1
-  var balance: Long = 20
+  var balance: Long = initBalance
   val InitState: Receive = {
     case NewGameRequest(userId, name) =>
       if (balance <= 0) {
@@ -134,12 +134,17 @@ class Player(uuid: UUID) extends Actor with ActorLogging {
 
   override def receive: Receive = InitState
 
+  override def unhandled(message: Any): Unit = {
+    sender ! IllegalRequest
+    self ! PoisonPill
+  }
+
   private def getScreen: Seq[Seq[Int]] = {
     Seq.fill(3)(Seq.fill(5)(Random.nextInt(9)))
   }
 
   private def isWin(screen: Seq[Seq[Int]]): Boolean = {
-    Random.nextBoolean()
+    randomGenerator.win
   }
 
   private def isWin(card: Card): Boolean = {
