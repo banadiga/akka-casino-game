@@ -5,6 +5,7 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.japi.Option.Some
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
+import io.github.lvivscalaclub.server.Player
 import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Matchers}
 
 class PlayerSpec

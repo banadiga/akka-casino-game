@@ -1,72 +1,18 @@
-package io.github.lvivscalaclub
+package io.github.lvivscalaclub.server
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
-import io.github.lvivscalaclub.Card.Card
+import akka.actor.{Actor, ActorLogging, PoisonPill}
+import io.github.lvivscalaclub._
+import io.github.lvivscalaclub.models.Card.Card
 
 import scala.util.Random
 
-trait Protocol
-
-class SlotMachine(supervisor: ActorRef) extends Actor with ActorLogging {
-  private val uuid: UUID = UUID.randomUUID()
-  supervisor ! NewGameRequest(uuid, "Ihor")
-
-  import scala.concurrent.duration._
-  import scala.concurrent.ExecutionContext.Implicits.global
-
-  override def receive: Receive = {
-    case NewGameResponse(Success, None) =>
-      log.info("NewGameResponse ok!")
-    case NewGameResponse(Failure, Some(err)) => log.info(s"NewGameResponse fail: $err!")
-    case Balance(balance: Long) =>
-      log.info(s"Balance $balance")
-      context.system.scheduler.scheduleOnce(4.seconds, sender, RollRequest)
-    case RollResponse(screen, win) =>
-      log.info(s"RollResponse ${win}!")
-      bonusGame(win)
-    case DoubleResponse(win) =>
-      log.info(s"DoubleResponse ${win}!")
-      bonusGame(win)
-  }
-
-  private def bonusGame(win: Long): Unit = {
-    if (win>0) {
-      if (Random.nextBoolean()) {
-        log.info(s"GoToDoubleRequest....")
-        sender ! GoToDoubleRequest
-        if (Random.nextBoolean()) {
-          sender ! DoubleRequest(Card.Black)
-        } else {
-          sender ! DoubleRequest(Card.Red)
-        }
-      } else {
-        sender ! TakeWinRequest
-      }
-    }
-  }
-}
-
-class Supervisor extends Actor with ActorLogging {
-
-  override def receive: Receive = {
-    case game@NewGameRequest(userId, name) =>
-      context.child(userId.toString) match {
-        case Some(_) =>
-          sender ! NewGameResponse(Failure, Some(PlayerAlreadyConnected))
-        case None =>
-          val playerActor = context.actorOf(Props(new Player(userId)), s"user-${userId.toString}")
-          log.info(s"Supervisor forward $name to player")
-          playerActor.forward(game)
-      }
-  }
-}
-
-class Player(uuid: UUID, initBalance: Long = 0, randomGenerator: RandomGenerator = DefaultRandomGenerator) extends Actor with ActorLogging {
+class Player(uuid: UUID, initBalance: Long = 20, randomGenerator: RandomGenerator = DefaultRandomGenerator) extends Actor with ActorLogging {
 
   val RollCost = 1
   var balance: Long = initBalance
+
   val InitState: Receive = {
     case NewGameRequest(userId, name) =>
       if (balance <= 0) {
@@ -154,11 +100,4 @@ class Player(uuid: UUID, initBalance: Long = 0, randomGenerator: RandomGenerator
   private def getWin(screen: Seq[Seq[Int]]): Long = {
     Random.nextInt(9) + 1
   }
-}
-
-object ActorHierarchyExperiments extends App {
-  val system = ActorSystem("Game")
-
-  val supervisor = system.actorOf(Props[Supervisor], "supervisor")
-  val webClient = system.actorOf(Props(new SlotMachine(supervisor)), s"SlotMatching-${System.currentTimeMillis()}")
 }
