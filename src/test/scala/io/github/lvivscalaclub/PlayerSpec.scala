@@ -5,7 +5,7 @@ import java.util.UUID
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.japi.Option.Some
 import akka.testkit.{ImplicitSender, TestActors, TestKit}
-import io.github.lvivscalaclub.server.Player
+import io.github.lvivscalaclub.server.{DefaultRandomGenerator, Player, RandomGenerator}
 import org.scalatest.{BeforeAndAfterAll, FreeSpecLike, Matchers}
 
 class PlayerSpec
@@ -21,7 +21,7 @@ class PlayerSpec
 
   "Player Action" - {
 
-    def createPlayer(balance: Long, generator: RandomGenerator = DefaultRandomGenerator): ActorRef = {
+    def createPlayer(balance: Long, generator: RandomGenerator = DefaultRandomGenerator) = {
       val props = Props(new Player(UUID.randomUUID(), initBalance = balance, randomGenerator = generator))
       system.actorOf(props, UUID.randomUUID().toString)
     }

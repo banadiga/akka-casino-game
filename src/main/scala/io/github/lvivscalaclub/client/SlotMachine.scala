@@ -2,13 +2,13 @@ package io.github.lvivscalaclub.client
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef}
+import akka.actor.{Actor, ActorLogging, ActorSelection}
 import io.github.lvivscalaclub._
 import io.github.lvivscalaclub.models.Card
 
 import scala.util.Random
 
-class SlotMachine(supervisor: ActorRef, name: String) extends Actor with ActorLogging {
+class SlotMachine(supervisor: ActorSelection, name: String) extends Actor with ActorLogging {
   private val uuid: UUID = UUID.randomUUID()
   supervisor ! NewGameRequest(uuid, name)
 

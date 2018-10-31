@@ -101,3 +101,11 @@ class Player(uuid: UUID, initBalance: Long = 20, randomGenerator: RandomGenerato
     Random.nextInt(9) + 1
   }
 }
+
+trait RandomGenerator {
+  def win: Boolean
+}
+
+object DefaultRandomGenerator extends RandomGenerator {
+  override def win: Boolean = Random.nextBoolean()
+}
